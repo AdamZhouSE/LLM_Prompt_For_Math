@@ -3,7 +3,7 @@ import time
 
 from baseline import nshot_chats
 import json
-from call_llm import get_full_response
+from constants import ZERO_SHOT, FEW_SHOT
 
 
 def is_number(s):
@@ -22,7 +22,7 @@ def is_number(s):
 
 
 def delete_extra_zero(n):
-    '''Delete the extra 0 after the decimal point'''
+    """Delete the extra 0 after the decimal point"""
     try:
         n = float(n)
     except:
@@ -38,11 +38,11 @@ def delete_extra_zero(n):
 
 
 def extract_ans_from_response(answer: str, eos=None):
-    '''
+    """
     :param answer: model-predicted solution or golden answer string
     :param eos: stop token
     :return:
-    '''
+    """
     if eos:
         answer = answer.split(eos)[0].strip()
 
@@ -67,21 +67,6 @@ def read_test_data():
     return data_list
 
 
-def evaluation_baseline(data):
-    question = data['question']
-    answer = data['answer']
-    answer = handle_answer(answer)
-    # zero-shot prompt
-    prompt = nshot_chats(0, question)
-    # call llm
-    llm_answer = get_full_response(prompt)
-    llm_answer = handle_answer(llm_answer)
-    print('question', question)
-    print('answer', answer)
-    print('llm_answer', llm_answer)
-    return llm_answer == answer
-
-
 def handle_answer(answer):
     answer = extract_ans_from_response(answer)
     if not isinstance(answer, int):
@@ -90,35 +75,79 @@ def handle_answer(answer):
     return answer
 
 
-def run_evaluation():
-    data_list = read_test_data()
-    total_cnt = len(data_list)
-    correct_cnt = 0
-    start_index = 0
-    while True:
-        try:
-            for i in range(start_index, total_cnt):
-                result = evaluation_baseline(data_list[i])
-                start_index += 1
-                print('index', start_index)
-                if result:
-                    correct_cnt += 1
-                print('correct_rate', correct_cnt / start_index)
-                time.sleep(1)
-                if start_index % 10 == 0:
-                    time.sleep(10)
-            break
-        except Exception as e:
-            print('abort', e)
-            # rate_limit_exceed, sleep for 60s
-            time.sleep(60)
-    print('total correct_rate', correct_cnt / total_cnt)
+def generate_prompt(prompt_method, question):
+    if prompt_method == ZERO_SHOT:
+        return nshot_chats(0, question)
+    elif prompt_method == FEW_SHOT:
+        return nshot_chats(8, question)
+    else:
+        # zero-shot by default
+        return nshot_chats(0, question)
 
 
-if __name__ == '__main__':
-    # test_solution = "Anna has 2 more apples than Elsa. So Anna has 2 + 5 = 7 apples. Elsa and Anna have 5 + 7 = 12 apples together. #### 12 apples"
-    # answer = extract_ans_from_response(test_solution)
-    # answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
-    # answer = delete_extra_zero(answer)
-    # print(answer)
-    run_evaluation()
+class Evaluation:
+    def __init__(self, llm, prompt_method, local_model=False):
+        self.data_list = read_test_data()
+        self.llm = llm
+        self.prompt_method = prompt_method
+        # whether to use local model (in case api rate limit exceed)
+        self.local_model = local_model
+
+    def evaluation(self, data):
+        question = data['question']
+        answer = handle_answer(data['answer'])
+        # generate prompt
+        prompt = generate_prompt(self.prompt_method, question)
+        # call llm
+        if self.local_model:
+            llm_answer = self.llm.get_response_from_local(prompt)
+        else:
+            llm_answer = self.llm.get_full_response(prompt)
+        llm_answer = handle_answer(llm_answer)
+        print('question', question)
+        print('answer', answer)
+        print('llm_answer', llm_answer)
+        return llm_answer == answer
+
+    def run_evaluation_local(self):
+        total_cnt = len(self.data_list)
+        correct_cnt = 0
+        start_index = 0
+        for data in self.data_list:
+            result = self.evaluation(data)
+            if result:
+                print('correct')
+                correct_cnt += 1
+            start_index += 1
+            print('correct_rate', correct_cnt / start_index)
+        print('total correct_rate', correct_cnt / total_cnt)
+
+    def run_evaluation(self):
+        total_cnt = len(self.data_list)
+        correct_cnt = 0
+        start_index = 0
+        while True:
+            try:
+                for i in range(start_index, total_cnt):
+                    result = self.evaluation(self.data_list[i])
+                    start_index += 1
+                    print('index', start_index)
+                    if result:
+                        correct_cnt += 1
+                    print('correct_rate', correct_cnt / start_index)
+                    time.sleep(1)
+                    if start_index % 10 == 0:
+                        time.sleep(10)
+                break
+            except Exception as e:
+                print('abort', e)
+                # rate_limit_exceed, sleep for 60s
+                time.sleep(60)
+        print('total correct_rate', correct_cnt / total_cnt)
+
+# if __name__ == '__main__':
+#     # test_solution = "Anna has 2 more apples than Elsa. So Anna has 2 + 5 = 7 apples. Elsa and Anna have 5 + 7 = 12 apples together. #### 12 apples"
+#     # answer = extract_ans_from_response(test_solution)
+#     # answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
+#     # answer = delete_extra_zero(answer)
+#     # print(answer)

@@ -1,5 +1,3 @@
-
-
 gsm8k_nshots = [
     (
         'There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?',
@@ -44,7 +42,8 @@ def nshot_chats(n: int, question: str) -> dict:
         return f"Answer:\nLet's think step by step.\n{s}"
 
     chats = [
-        {"role": "system", "content": "Your task is to solve a series of math word problems by providing the final answer. Use the format #### [value] to highlight your answer. For example, if the answer is 560, you should write #### 560."}
+        {"role": "system",
+         "content": "Your task is to solve a series of math word problems by providing the final answer. Use the format #### [value] to highlight your answer. For example, if the answer is 560, you should write #### 560."}
     ]
 
     for q, a in gsm8k_nshots[:n]:
@@ -57,6 +56,9 @@ def nshot_chats(n: int, question: str) -> dict:
     return chats
 
 
-zero_shot_prompt = nshot_chats(n=0, question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
+zero_shot_prompt = nshot_chats(n=0,
+                               question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
 
-few_shot_prompt = nshot_chats(n=8, question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")  # todo: n is the number of demonstrations
+# todo: n is the number of demonstrations
+few_shot_prompt = nshot_chats(n=8,
+                              question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
