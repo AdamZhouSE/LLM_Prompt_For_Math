@@ -67,7 +67,7 @@ def read_test_data():
     return data_list
 
 
-def handle_answer(answer):
+def convert_answer(answer):
     answer = extract_ans_from_response(answer)
     if not isinstance(answer, int):
         answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
@@ -86,28 +86,50 @@ def generate_prompt(prompt_method, question):
 
 
 class Evaluation:
-    def __init__(self, llm, prompt_method, local_model=False):
+    def __init__(self, llm, prompt_method, record_path, local_model=False):
         self.data_list = read_test_data()
         self.llm = llm
         self.prompt_method = prompt_method
+        self.record_path = record_path
         # whether to use local model (in case api rate limit exceed)
         self.local_model = local_model
 
     def evaluation(self, data):
-        question = data['question']
-        answer = handle_answer(data['answer'])
         # generate prompt
-        prompt = generate_prompt(self.prompt_method, question)
+        prompt = generate_prompt(self.prompt_method, data['question'])
         # call llm
-        if self.local_model:
-            llm_answer = self.llm.get_response_from_local(prompt)
-        else:
-            llm_answer = self.llm.get_full_response(prompt)
-        llm_answer = handle_answer(llm_answer)
-        print('question', question)
+        full_response = self.llm.get_full_response(prompt)
+        # convert the answer into numerical form
+        answer = convert_answer(data['answer'])
+        llm_answer = convert_answer(full_response['answer'])
+        print('question', data['question'])
         print('answer', answer)
         print('llm_answer', llm_answer)
+        self.record_evaluation(data['question'], data['answer'], llm_answer == answer, full_response)
         return llm_answer == answer
+
+    def record_evaluation(self, question, answer, result, response):
+        """
+        record the evaluation result in a jsonl file
+
+        Args:
+            question: question to be asked
+            answer: complete correct answer
+            result: whether llm_answer is correct
+            response: response from llm
+        """
+        with open(self.record_path, 'a') as f:
+            record = {
+                'question': question,
+                'answer': answer,
+                'llm_answer': response['answer'],
+                'result': result,
+                'completion_tokens': response['completion_tokens'],
+                'prompt_tokens': response['prompt_tokens'],
+                'total_tokens': response['total_tokens'],
+                'time': response['time']
+            }
+            f.write(json.dumps(record) + '\n')
 
     def run_evaluation_local(self):
         total_cnt = len(self.data_list)

@@ -9,20 +9,30 @@ class LLM:
         self.client = OpenAI(base_url=MODEL_BASE_URL, api_key=MODEL_API_KEY)
 
     def get_full_response(self, prompt):
+        """
+        Get full response from the model, including answer and cost of the query
+        """
         completion = self.client.chat.completions.create(
             model=MODEL_NAME,
             messages=prompt,
-            stream=True
+            stream=True,
+            stream_options={"include_usage": True}
         )
 
-        full_response = ""
-
+        answer = ""
+        response = {}
         for chunk in completion:
-            delta = chunk.choices[0].delta
-            if hasattr(delta, 'content'):
-                full_response += delta.content
-
-        return full_response
+            if len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                if hasattr(delta, 'content'):
+                    answer += delta.content
+            else:
+                # end of stream, return information about the query
+                response = {'completion_tokens': chunk.usage.completion_tokens,
+                            'prompt_tokens': chunk.usage.prompt_tokens,
+                            'total_tokens': chunk.usage.total_tokens, 'time': chunk.usage.total_latency}
+        response['answer'] = answer
+        return response
 
     def get_response_from_local(self, prompt):
         data = {
@@ -39,4 +49,4 @@ class LLM:
 
 if __name__ == '__main__':
     llm = LLM()
-    llm.get_response_from_local(zero_shot_prompt)
+    llm.get_full_response(zero_shot_prompt)
