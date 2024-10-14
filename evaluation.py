@@ -69,9 +69,9 @@ def read_test_data():
 
 def convert_answer(answer):
     answer = extract_ans_from_response(answer)
-    if not isinstance(answer, int):
+    if isinstance(answer, str):
         answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
-        answer = delete_extra_zero(answer)
+    answer = delete_extra_zero(answer)
     return answer
 
 
