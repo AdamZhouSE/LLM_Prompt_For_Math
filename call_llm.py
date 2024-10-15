@@ -1,12 +1,16 @@
+import time
+
 from openai import OpenAI
 import requests
-from baseline import zero_shot_prompt
 from config import MODEL_NAME, MODEL_BASE_URL, MODEL_API_KEY, LOCAL_MODEL_NAME, LOCAL_MODEL_BASE_URL
+from pot_prompt import ProgramOfThoughts
 
 
 class LLM:
-    def __init__(self):
+    def __init__(self, temperature=0.0, top_p=1):
         self.client = OpenAI(base_url=MODEL_BASE_URL, api_key=MODEL_API_KEY)
+        self.temperature = temperature
+        self.top_p = top_p
 
     def get_full_response(self, prompt):
         """
@@ -16,8 +20,12 @@ class LLM:
             model=MODEL_NAME,
             messages=prompt,
             stream=True,
-            stream_options={"include_usage": True}
+            stream_options={"include_usage": True},
+            temperature=self.temperature,
+            top_p=self.top_p,
         )
+
+        time.sleep(0.5)
 
         answer = ""
         response = {}
@@ -38,7 +46,9 @@ class LLM:
         data = {
             'model': LOCAL_MODEL_NAME,
             'messages': prompt,
-            'stream': False
+            'stream': False,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
         }
         response = requests.post(LOCAL_MODEL_BASE_URL, json=data)
         if response.status_code == 200:
@@ -48,5 +58,8 @@ class LLM:
 
 
 if __name__ == '__main__':
-    llm = LLM()
-    llm.get_full_response(zero_shot_prompt)
+    llm = LLM(0.4, 1)
+    pot_prompt = ProgramOfThoughts()
+    prompt = pot_prompt.n_shot_chats(8, "Olivia uploaded 72 pictures to Facebook.  She put the same number of the pics into 8 albums.  3 of the albums were selfies only and 2 of the albums were portraits.  How many portraits and selfies did she have?")
+    llm.get_full_response(prompt)
+    llm.get_response_from_local(prompt)

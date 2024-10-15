@@ -1,60 +1,9 @@
 import re
 import time
 
-from baseline import nshot_chats
+from baseline import Baseline
 import json
 from constants import ZERO_SHOT, FEW_SHOT
-
-
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        pass
-    try:
-        import unicodedata
-        unicodedata.numeric(s)
-        return True
-    except (TypeError, ValueError):
-        pass
-    return False
-
-
-def delete_extra_zero(n):
-    """Delete the extra 0 after the decimal point"""
-    try:
-        n = float(n)
-    except:
-        # print("None {}".format(n))
-        return n
-    if isinstance(n, int):
-        return str(n)
-    if isinstance(n, float):
-        n = str(n).rstrip('0')  # 删除小数点后多余的0
-        n = int(n.rstrip('.')) if n.endswith('.') else float(n)  # 只剩小数点直接转int，否则转回float
-        n = str(n)
-        return n
-
-
-def extract_ans_from_response(answer: str, eos=None):
-    """
-    :param answer: model-predicted solution or golden answer string
-    :param eos: stop token
-    :return:
-    """
-    if eos:
-        answer = answer.split(eos)[0].strip()
-
-    answer = answer.split('####')[-1].strip()
-
-    for remove_char in [',', '$', '%', 'g']:
-        answer = answer.replace(remove_char, '')
-
-    try:
-        return int(answer)
-    except ValueError:
-        return answer
 
 
 def read_test_data():
@@ -67,69 +16,93 @@ def read_test_data():
     return data_list
 
 
-def convert_answer(answer):
-    answer = extract_ans_from_response(answer)
-    if isinstance(answer, str):
-        answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
-    answer = delete_extra_zero(answer)
-    return answer
-
-
-def generate_prompt(prompt_method, question):
-    if prompt_method == ZERO_SHOT:
-        return nshot_chats(0, question)
-    elif prompt_method == FEW_SHOT:
-        return nshot_chats(8, question)
-    else:
-        # zero-shot by default
-        return nshot_chats(0, question)
-
-
 class Evaluation:
+    """
+    Base evaluation class, evaluate the baseline of zero-shot and few-shot
+    """
+
     def __init__(self, llm, prompt_method, record_path, local_model=False):
         self.data_list = read_test_data()
         self.llm = llm
+        # zero-shot or few-shot
         self.prompt_method = prompt_method
+        # the file path to record the evaluation result
         self.record_path = record_path
         # whether to use local model (in case api rate limit exceed)
         self.local_model = local_model
 
+    def generate_prompt(self, question):
+        prompt_base = Baseline()
+        if self.prompt_method == ZERO_SHOT:
+            return prompt_base.n_shot_chats(0, question)
+        elif self.prompt_method == FEW_SHOT:
+            return prompt_base.n_shot_chats(8, question)
+        else:
+            # zero-shot by default
+            return prompt_base.n_shot_chats(0, question)
+
     def evaluation(self, data):
+        """
+        compare the result from llm with the correct answer
+        record the evaluation result in a jsonl file
+        """
         # generate prompt
-        prompt = generate_prompt(self.prompt_method, data['question'])
+        prompt = self.generate_prompt(data['question'])
         # call llm
         full_response = self.llm.get_full_response(prompt)
         # convert the answer into numerical form
-        answer = convert_answer(data['answer'])
-        llm_answer = convert_answer(full_response['answer'])
+        answer = self.convert_answer(data['answer'])
+        llm_answer = self.convert_answer(full_response['answer'])
         print('question', data['question'])
-        print('answer', answer)
-        print('llm_answer', llm_answer)
-        self.record_evaluation(data['question'], data['answer'], llm_answer == answer, full_response)
+        print('llm response', full_response['answer'])
+        print('answer vs llm_answer', answer, llm_answer)
+        self.record_evaluation(data['question'], data['answer'], llm_answer, full_response['completion_tokens'],
+                               full_response['time'])
         return llm_answer == answer
 
-    def record_evaluation(self, question, answer, result, response):
+    def record_evaluation(self, question, answer, llm_answer, completion_tokens, time):
         """
         record the evaluation result in a jsonl file
 
         Args:
             question: question to be asked
             answer: complete correct answer
-            result: whether llm_answer is correct
-            response: response from llm
+            llm_answer: model-predicted answer
+            completion_tokens: number of tokens used in the output
+            time: time used for the generation
         """
         with open(self.record_path, 'a') as f:
             record = {
                 'question': question,
                 'answer': answer,
-                'llm_answer': response['answer'],
-                'result': result,
-                'completion_tokens': response['completion_tokens'],
-                'prompt_tokens': response['prompt_tokens'],
-                'total_tokens': response['total_tokens'],
-                'time': response['time']
+                'llm_answer': llm_answer,
+                'result': answer == llm_answer,
+                'completion_tokens': completion_tokens,
+                'time': time
             }
             f.write(json.dumps(record) + '\n')
+
+    def run_evaluation(self):
+        total_cnt = len(self.data_list)
+        correct_cnt = 0
+        start_index = 0
+        while True:
+            try:
+                for i in range(start_index, total_cnt):
+                    print('No.', start_index + 1, sep='')
+                    result = self.evaluation(self.data_list[i])
+                    start_index += 1
+                    if result:
+                        correct_cnt += 1
+                    print('correct_rate', correct_cnt / start_index)
+                    if start_index % 10 == 0:
+                        time.sleep(10)
+                break
+            except Exception as e:
+                print('abort', e)
+                # rate_limit_exceed, sleep for 60s
+                time.sleep(10)
+        print('total correct_rate', correct_cnt / total_cnt)
 
     def run_evaluation_local(self):
         total_cnt = len(self.data_list)
@@ -144,28 +117,60 @@ class Evaluation:
             print('correct_rate', correct_cnt / start_index)
         print('total correct_rate', correct_cnt / total_cnt)
 
-    def run_evaluation(self):
-        total_cnt = len(self.data_list)
-        correct_cnt = 0
-        start_index = 0
-        while True:
-            try:
-                for i in range(start_index, total_cnt):
-                    result = self.evaluation(self.data_list[i])
-                    start_index += 1
-                    print('index', start_index)
-                    if result:
-                        correct_cnt += 1
-                    print('correct_rate', correct_cnt / start_index)
-                    time.sleep(1)
-                    if start_index % 10 == 0:
-                        time.sleep(10)
-                break
-            except Exception as e:
-                print('abort', e)
-                # rate_limit_exceed, sleep for 60s
-                time.sleep(60)
-        print('total correct_rate', correct_cnt / total_cnt)
+    def convert_answer(self, answer):
+        answer = self.extract_ans_from_response(answer)
+        if not self.is_number(answer):
+            answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
+        answer = self.delete_extra_zero(answer)
+        return answer
+
+    def is_number(self, s):
+        try:
+            float(s)
+            return True
+        except ValueError:
+            pass
+        try:
+            import unicodedata
+            unicodedata.numeric(s)
+            return True
+        except (TypeError, ValueError):
+            pass
+        return False
+
+    def delete_extra_zero(self, n):
+        """Delete the extra 0 after the decimal point"""
+        try:
+            n = float(n)
+        except:
+            # print("None {}".format(n))
+            return n
+        if isinstance(n, int):
+            return str(n)
+        if isinstance(n, float):
+            n = str(n).rstrip('0')  # 删除小数点后多余的0
+            n = int(n.rstrip('.')) if n.endswith('.') else float(n)  # 只剩小数点直接转int，否则转回float
+            n = str(n)
+            return n
+
+    def extract_ans_from_response(self, answer: str, eos=None):
+        """
+        :param answer: model-predicted solution or golden answer string
+        :param eos: stop token
+        :return:
+        """
+        if eos:
+            answer = answer.split(eos)[0].strip()
+
+        answer = answer.split('####')[-1].strip()
+
+        for remove_char in [',', '$', '%', 'g']:
+            answer = answer.replace(remove_char, '')
+
+        try:
+            return int(answer)
+        except ValueError:
+            return answer
 
 # if __name__ == '__main__':
 #     # test_solution = "Anna has 2 more apples than Elsa. So Anna has 2 + 5 = 7 apples. Elsa and Anna have 5 + 7 = 12 apples together. #### 12 apples"

@@ -1,4 +1,4 @@
-gsm8k_nshots = [
+gsm8k_n_shots = [
     (
         'There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?',
         'There are 15 trees originally. Then there were 21 trees after the Grove workers planted some more. So there must have been 21 - 15 = <<21-15=6>>6 trees that were planted.\n#### 6'
@@ -34,31 +34,39 @@ gsm8k_nshots = [
 ]
 
 
-def nshot_chats(n: int, question: str) -> dict:
-    def question_prompt(s):
-        return f'Question: {s}'
+class Baseline:
+    def __init__(self):
+        self.n_shot_list = gsm8k_n_shots
 
-    def answer_prompt(s):
-        return f"Answer:\nLet's think step by step.\n{s}"
+    def question_prompt(self, question):
+        return f'Question: {question}'
 
-    chats = [
-        {"role": "system",
-         "content": "Your task is to solve a series of math word problems by providing the final answer. Use the format #### [value] to highlight your answer. For example, if the answer is 560, you should write #### 560."}
-    ]
+    def answer_prompt(self, answer):
+        return f"Answer:\nLet's think step by step.\n{answer}"
 
-    for q, a in gsm8k_nshots[:n]:
-        chats.append(
-            {"role": "user", "content": question_prompt(q)})
-        chats.append(
-            {"role": "assistant", "content": answer_prompt(a)})
+    def n_shot_chats(self, n: int, question: str):
+        chats = [
+            {"role": "system",
+             "content": "Your task is to solve a series of math word problems by providing the final answer. "
+                        "Use the format #### [value] to highlight your answer. "
+                        "For example, if the answer is 560, you should write #### 560."}
+        ]
 
-    chats.append({"role": "user", "content": question_prompt(question)})
-    return chats
+        for q, a in self.n_shot_list[:n]:
+            chats.append(
+                {"role": "user", "content": self.question_prompt(q)})
+            chats.append(
+                {"role": "assistant", "content": self.answer_prompt(a)})
+
+        chats.append({"role": "user", "content": self.question_prompt(question)})
+        return chats
 
 
-zero_shot_prompt = nshot_chats(n=0,
-                               question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
+if __name__ == '__main__':
+    baseline = Baseline()
+    zero_shot_prompt = baseline.n_shot_chats(n=0,
+                                             question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
 
-# todo: n is the number of demonstrations
-few_shot_prompt = nshot_chats(n=8,
-                              question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
+    # todo: n is the number of demonstrations
+    few_shot_prompt = baseline.n_shot_chats(n=8,
+                                            question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
