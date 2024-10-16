@@ -22,6 +22,7 @@ class EvaluationPot(Evaluation):
         prompt = self.generate_prompt(data['question'])
         total_completion_tokens = 0
         total_time = 0.0
+        all_generated = []
         # call llm
         result_counter = Counter()
         # number of trials default 1 -> greedy
@@ -30,6 +31,7 @@ class EvaluationPot(Evaluation):
             full_response = self.llm.get_full_response(prompt)
             total_completion_tokens += full_response['completion_tokens']
             total_time += full_response['time']
+            all_generated.append(full_response['answer'])
             llm_answer = self.convert_pot_answer(full_response['answer'])
             print(llm_answer)
             if llm_answer is not None:
@@ -47,7 +49,7 @@ class EvaluationPot(Evaluation):
         answer = self.convert_answer(data['answer'])
         print('question', data['question'])
         print('answer vs llm_answer', answer, llm_answer)
-        self.record_evaluation(data['question'], data['answer'], llm_answer, total_completion_tokens, total_time)
+        self.record_evaluation(data['question'], answer, llm_answer, all_generated, total_completion_tokens, total_time)
         return llm_answer == answer
 
     def generate_prompt(self, question):

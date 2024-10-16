@@ -62,11 +62,10 @@ class Baseline:
         return chats
 
 
-if __name__ == '__main__':
-    baseline = Baseline()
-    zero_shot_prompt = baseline.n_shot_chats(n=0,
-                                             question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
+baseline = Baseline()
+zero_shot_prompt = baseline.n_shot_chats(n=0,
+                                         question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
 
-    # todo: n is the number of demonstrations
-    few_shot_prompt = baseline.n_shot_chats(n=8,
-                                            question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
+# todo: n is the number of demonstrations
+few_shot_prompt = baseline.n_shot_chats(n=8,
+                                        question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")

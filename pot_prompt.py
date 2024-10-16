@@ -1,10 +1,9 @@
 from baseline import Baseline
 
 system_prompt = '''
-Solve math word problems using Python code.
-
-- Assign the final answer to a variable called `ans`.
-- Provide only runnable Python code without explanations or comments.
+Your task is to solve math word problems using Python code.
+Assign the final result to a variable called `ans`.
+Provide only runnable Python code.
 '''
 
 gsm8k_n_shots = [
@@ -100,7 +99,7 @@ class ProgramOfThoughts(Baseline):
         self.n_shot_list = gsm8k_n_shots
 
     def answer_prompt(self, answer):
-        return f'{answer}'
+        return f'# Python code, return ans\n{answer}'
 
     def n_shot_chats(self, n: int, question: str):
         chats = [{"role": "system", "content": system_prompt}]
