@@ -2,15 +2,19 @@ import time
 
 from evaluation import Evaluation
 
-system_prompt = """
+system_prompt = '''
 Your task is to solve a series of math word problems by providing the final answer. 
 Use the format #### [value] to highlight your answer. 
-For example, if the answer is 560, you should write #### 560."""
+For example, if the answer is 560, you should write #### 560.
+'''
+
+# with open('prompt/complex_php_gsm8k.txt', 'r') as f:
+#     n_shots_prompt = f.read()
 
 
 class ProgressiveHint(Evaluation):
-    def __init__(self, llm, prompt_method, record_path, num_of_shots=0):
-        super().__init__(llm, prompt_method, record_path, num_of_shots)
+    def __init__(self, llm, record_path, num_of_shots=0, local_model=False):
+        super().__init__(llm, record_path, num_of_shots, local_model)
         self.max_hint = 5
 
     def question_prompt_with_hint(self, question, hint):
@@ -23,15 +27,9 @@ class ProgressiveHint(Evaluation):
         return f"Answer:\nLet's think step by step.\n{answer}"
 
     def n_shot_chats(self, n: int, question: str, hint: list):
-        chats = [{"role": "system", "content": system_prompt}]
+        chats = [{"role": "system", "content": system_prompt},
+                 {"role": "user", "content": self.question_prompt_with_hint(question, hint)}]
 
-        # for q, a in self.n_shot_list[:n]:
-        #     chats.append(
-        #         {"role": "user", "content": self.question_prompt(q)})
-        #     chats.append(
-        #         {"role": "assistant", "content": self.answer_prompt(a)})
-
-        chats.append({"role": "user", "content": self.question_prompt_with_hint(question, hint)})
         return chats
 
     def progressive_hint(self, data):
@@ -54,6 +52,7 @@ class ProgressiveHint(Evaluation):
             if last_llm_answer == llm_answer:
                 break
             last_llm_answer = llm_answer
+            # add new hint to question
             hint.append(last_llm_answer)
         time.sleep(3)
         return last_llm_answer, total_completion_tokens, total_time, generated

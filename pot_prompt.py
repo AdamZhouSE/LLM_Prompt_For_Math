@@ -97,8 +97,8 @@ ans = 5 - total_hours"""
 
 
 class ProgramOfThoughts(Evaluation):
-    def __init__(self, llm, prompt_method, record_path, num_of_shots=0, num_of_trials=1):
-        super().__init__(llm, prompt_method, record_path, num_of_shots)
+    def __init__(self, llm, record_path, num_of_shots=0, num_of_trials=1, local_model=False):
+        super().__init__(llm, record_path, num_of_shots, local_model)
         self.n_shot_list = gsm8k_n_shots
         # decide whether to use greedy or self-consistency, default greedy
         self.num_of_trials = num_of_trials

@@ -37,8 +37,8 @@ gsm8k_n_shots = [
 
 
 class Baseline(Evaluation):
-    def __init__(self, llm, prompt_method, record_path):
-        super().__init__(llm, prompt_method, record_path)
+    def __init__(self, llm, record_path):
+        super().__init__(llm, record_path)
         self.n_shot_list = gsm8k_n_shots
 
     def question_prompt(self, question):

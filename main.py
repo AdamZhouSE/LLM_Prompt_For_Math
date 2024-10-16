@@ -10,7 +10,7 @@ POT_RESULTS = 'pot_prompt_sc.jsonl'
 PHP_RESULTS = 'php_prompt_greedy.jsonl'
 
 if __name__ == '__main__':
-    llm = LLM(0.0, 1)
-    php = ProgressiveHint(llm, ZERO_SHOT, PHP_RESULTS)
+    llm = LLM()
+    php = ProgressiveHint(llm, PHP_RESULTS)
     php.run_evaluation()
 
