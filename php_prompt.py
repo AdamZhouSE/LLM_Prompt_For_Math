@@ -9,9 +9,11 @@ For example, if the answer is 560, you should write #### 560."""
 
 
 class ProgressiveHint(Evaluation):
-    def __init__(self, llm, prompt_method, record_path):
+    def __init__(self, llm, prompt_method, record_path, num_of_shots=0):
         super().__init__(llm, prompt_method, record_path)
         self.max_hint = 5
+        # use how may shots to generate the prompt default zero-shot
+        self.num_of_shots = num_of_shots
 
     def question_prompt_with_hint(self, question, hint):
         prompt = f'Question: {question}'
@@ -37,6 +39,7 @@ class ProgressiveHint(Evaluation):
     def progressive_hint(self, data):
         total_completion_tokens = 0
         total_time = 0.0
+        generated = []
         # chat with llm multiple times until the answer is the same
         last_llm_answer = None
         hint = []
@@ -47,6 +50,7 @@ class ProgressiveHint(Evaluation):
             full_response = self.llm.get_full_response(prompt)
             total_completion_tokens += full_response['completion_tokens']
             total_time += full_response['time']
+            generated.append(full_response['answer'])
             llm_answer = self.convert_answer(full_response['answer'])
             print(llm_answer)
             if last_llm_answer == llm_answer:
@@ -54,10 +58,10 @@ class ProgressiveHint(Evaluation):
             last_llm_answer = llm_answer
             hint.append(last_llm_answer)
         time.sleep(3)
-        return last_llm_answer, total_completion_tokens, total_time
+        return last_llm_answer, total_completion_tokens, total_time, generated
 
     def generate_prompt_with_hint(self, question, hint):
-        return self.n_shot_chats(0, question, hint)
+        return self.n_shot_chats(self.num_of_shots, question, hint)
 
     def evaluation(self, data):
         """
@@ -65,11 +69,10 @@ class ProgressiveHint(Evaluation):
         record the evaluation result in a jsonl file
         """
         # get llm result
-        llm_answer, total_completion_tokens, total_time = self.progressive_hint(data)
+        llm_answer, total_completion_tokens, total_time, generated = self.progressive_hint(data)
         # convert the answer into numerical form
         answer = self.convert_answer(data['answer'])
         print('question', data['question'])
         print('answer vs llm_answer', answer, llm_answer)
-        self.record_evaluation(data['question'], answer, llm_answer, [data['answer']], total_completion_tokens,
-                               total_time)
+        self.record_evaluation(data['question'], answer, llm_answer, generated, total_completion_tokens, total_time)
         return llm_answer == answer
