@@ -1,9 +1,7 @@
 import re
 import time
 
-from baseline import Baseline
 import json
-from constants import ZERO_SHOT, FEW_SHOT
 
 
 def read_test_data():
@@ -21,25 +19,18 @@ class Evaluation:
     Base evaluation class, evaluate the baseline of zero-shot and few-shot
     """
 
-    def __init__(self, llm, prompt_method, record_path, local_model=False):
+    def __init__(self, llm, record_path, num_of_shots=0, local_model=False):
         self.data_list = read_test_data()
         self.llm = llm
         # zero-shot or few-shot
-        self.prompt_method = prompt_method
+        self.num_of_shots = num_of_shots
         # the file path to record the evaluation result
         self.record_path = record_path
         # whether to use local model (in case api rate limit exceed)
         self.local_model = local_model
 
     def generate_prompt(self, question):
-        prompt_base = Baseline()
-        if self.prompt_method == ZERO_SHOT:
-            return prompt_base.n_shot_chats(0, question)
-        elif self.prompt_method == FEW_SHOT:
-            return prompt_base.n_shot_chats(8, question)
-        else:
-            # zero-shot by default
-            return prompt_base.n_shot_chats(0, question)
+        return question
 
     def evaluation(self, data):
         """

@@ -1,3 +1,5 @@
+from evaluation import Evaluation
+
 gsm8k_n_shots = [
     (
         'There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?',
@@ -34,8 +36,9 @@ gsm8k_n_shots = [
 ]
 
 
-class Baseline:
-    def __init__(self):
+class Baseline(Evaluation):
+    def __init__(self, llm, prompt_method, record_path):
+        super().__init__(llm, prompt_method, record_path)
         self.n_shot_list = gsm8k_n_shots
 
     def question_prompt(self, question):
@@ -61,11 +64,5 @@ class Baseline:
         chats.append({"role": "user", "content": self.question_prompt(question)})
         return chats
 
-
-baseline = Baseline()
-zero_shot_prompt = baseline.n_shot_chats(n=0,
-                                         question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
-
-# todo: n is the number of demonstrations
-few_shot_prompt = baseline.n_shot_chats(n=8,
-                                        question="Elsa has 5 apples. Anna has 2 more apples than Elsa. How many apples do they have together?")
+    def generate_prompt(self, question):
+        return self.n_shot_chats(self.num_of_shots, question)

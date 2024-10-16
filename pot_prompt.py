@@ -97,9 +97,10 @@ ans = 5 - total_hours"""
 
 
 class ProgramOfThoughts(Evaluation):
-    def __init__(self, llm, prompt_method, record_path, num_of_trials=1):
-        super().__init__(llm, prompt_method, record_path)
+    def __init__(self, llm, prompt_method, record_path, num_of_shots=0, num_of_trials=1):
+        super().__init__(llm, prompt_method, record_path, num_of_shots)
         self.n_shot_list = gsm8k_n_shots
+        # decide whether to use greedy or self-consistency, default greedy
         self.num_of_trials = num_of_trials
 
     def question_prompt(self, question):
@@ -170,7 +171,7 @@ class ProgramOfThoughts(Evaluation):
         return llm_answer, full_response['completion_tokens'], full_response['time'], full_response['answer']
 
     def generate_prompt(self, question):
-        return self.n_shot_chats(8, question)
+        return self.n_shot_chats(self.num_of_shots, question)
 
     def convert_pot_answer(self, answer):
         exec_result = self.safe_execute(answer)

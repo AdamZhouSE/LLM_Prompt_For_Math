@@ -10,10 +10,8 @@ For example, if the answer is 560, you should write #### 560."""
 
 class ProgressiveHint(Evaluation):
     def __init__(self, llm, prompt_method, record_path, num_of_shots=0):
-        super().__init__(llm, prompt_method, record_path)
+        super().__init__(llm, prompt_method, record_path, num_of_shots)
         self.max_hint = 5
-        # use how may shots to generate the prompt default zero-shot
-        self.num_of_shots = num_of_shots
 
     def question_prompt_with_hint(self, question, hint):
         prompt = f'Question: {question}'
