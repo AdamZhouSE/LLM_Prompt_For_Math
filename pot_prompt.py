@@ -1,4 +1,7 @@
-from baseline import Baseline
+from evaluation import Evaluation
+import func_timeout
+from collections import Counter
+import time
 
 system_prompt = '''
 Your task is to solve math word problems using Python code.
@@ -93,10 +96,14 @@ ans = 5 - total_hours"""
 ]
 
 
-class ProgramOfThoughts(Baseline):
-    def __init__(self):
-        super().__init__()
+class ProgramOfThoughts(Evaluation):
+    def __init__(self, llm, prompt_method, record_path, num_of_trials=1):
+        super().__init__(llm, prompt_method, record_path)
         self.n_shot_list = gsm8k_n_shots
+        self.num_of_trials = num_of_trials
+
+    def question_prompt(self, question):
+        return f'Question: {question}'
 
     def answer_prompt(self, answer):
         return f'# Python code, return ans\n{answer}'
@@ -113,7 +120,101 @@ class ProgramOfThoughts(Baseline):
         chats.append({"role": "user", "content": self.question_prompt(question)})
         return chats
 
+    def evaluation(self, data):
+        """
+        compare the result from llm with the correct answer
+        record the evaluation result in a jsonl file
+        """
+        llm_answer, total_completion_tokens, total_time, all_generated = self.pot_with_self_consistency(data)
+        # convert the answer into numerical form
+        answer = self.convert_answer(data['answer'])
+        print('question', data['question'])
+        print('answer vs llm_answer', answer, llm_answer)
+        self.record_evaluation(data['question'], answer, llm_answer, all_generated, total_completion_tokens, total_time)
+        return llm_answer == answer
 
-if __name__ == '__main__':
-    pot = ProgramOfThoughts()
-    print(pot.n_shot_chats(9, 'test'))
+    def pot_with_self_consistency(self, data):
+        """
+        program of thoughts with greedy / self-consistency
+        """
+        total_completion_tokens = 0
+        total_time = 0.0
+        all_generated = []
+        result_counter = Counter()
+        # number of trials default 1 -> greedy
+        # multiple trials -> self-consistency
+        for i in range(self.num_of_trials):
+            llm_answer, completion_tokens, time_cost, generated = self.program_of_thoughts(data)
+            total_completion_tokens += completion_tokens
+            total_time += time_cost
+            all_generated.append(generated)
+            print(llm_answer)
+            if llm_answer is not None:
+                result_counter.update([llm_answer])
+            if self.num_of_trials > 1:
+                time.sleep(1.5)
+        if self.num_of_trials > 1:
+            time.sleep(5)
+        # get a majority vote
+        if len(result_counter) > 0:
+            llm_answer = result_counter.most_common(1)[0][0]
+        else:
+            llm_answer = None
+        return llm_answer, total_completion_tokens, total_time, all_generated
+
+    def program_of_thoughts(self, data):
+        # generate prompt
+        prompt = self.generate_prompt(data['question'])
+        full_response = self.llm.get_full_response(prompt)
+        llm_answer = self.convert_pot_answer(full_response['answer'])
+        return llm_answer, full_response['completion_tokens'], full_response['time'], full_response['answer']
+
+    def generate_prompt(self, question):
+        return self.n_shot_chats(8, question)
+
+    def convert_pot_answer(self, answer):
+        exec_result = self.safe_execute(answer)
+        float_answer = self.floatify_ans(exec_result)
+        return self.delete_extra_zero(float_answer)
+
+    def safe_execute(self, code_string: str, keys=None):
+        def execute(x):
+            try:
+                exec(x)
+                locals_ = locals()
+                if keys is None:
+                    return locals_.get('ans', None)
+                else:
+                    return [locals_.get(k, None) for k in keys]
+            except Exception:
+                return None
+
+        try:
+            ans = func_timeout.func_timeout(5, execute, args=(code_string,))
+        except func_timeout.FunctionTimedOut:
+            ans = None
+
+        return ans
+
+    def floatify_ans(self, ans):
+        if ans is None:
+            return None
+        elif type(ans) == dict:
+            ans = list(ans.values())[0]
+        elif type(ans) == bool:
+            ans = ans
+        elif type(ans) in [list, tuple]:
+            if not ans:
+                return None
+            else:
+                try:
+                    ans = float(ans[0])
+                except Exception:
+                    ans = str(ans[0])
+        else:
+            try:
+                ans = float(ans)
+            except Exception:
+                ans = str(ans)
+        return ans
+
