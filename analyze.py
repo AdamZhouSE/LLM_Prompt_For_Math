@@ -1,8 +1,9 @@
-from main import POT_RESULTS
+from main import ZERO_SHOT_RESULTS, FEW_SHOT_RESULTS, POT_RESULTS_GREEDY, POT_RESULTS_SC10, PHP_RESULTS_ZERO_SHOT, \
+    PHP_RESULTS_FEW_SHOT
 import json
 
 if __name__ == '__main__':
-    with open(POT_RESULTS, 'r') as f:
+    with open(PHP_RESULTS_FEW_SHOT, 'r') as f:
         lines = f.readlines()
         total_count = len(lines)
         correct_count = 0

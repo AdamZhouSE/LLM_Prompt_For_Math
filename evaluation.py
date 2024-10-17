@@ -96,11 +96,15 @@ class Evaluation:
         print('total correct_rate', correct_cnt / total_cnt)
 
     def convert_answer(self, answer):
-        answer = self.extract_ans_from_response(answer)
-        if not self.is_number(answer):
-            answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
-        answer = self.delete_extra_zero(answer)
-        return answer
+        try:
+            answer = self.extract_ans_from_response(answer)
+            if not self.is_number(answer):
+                answer = re.findall('-?\d+(?:\.\d+)?(?:/\d+)?', answer)[0]
+            answer = self.delete_extra_zero(answer)
+            return answer
+        except IndexError:
+            print('Convert error. LLM response:', answer)
+            return None
 
     def is_number(self, s):
         try:

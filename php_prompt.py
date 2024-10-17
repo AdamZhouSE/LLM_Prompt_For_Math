@@ -10,9 +10,20 @@ For example, if the answer is 560, you should write #### 560.
 
 
 class ProgressiveHint(Evaluation):
-    def __init__(self, llm, record_path, num_of_shots=0):
-        super().__init__(llm, record_path, num_of_shots)
-        self.max_hint = 5
+    """
+    PHP: Progressive Hint Prompt (https://github.com/chuanyang-Zheng/Progressive-Hint)
+    Idea: Engage in multiple rounds of interaction with the model,
+            using the previous round's answer as a prompt for the model,
+            and end the process when the model returns the same result twice.
+    """
+    def __init__(self, llm, record_path, n_shots_flag=False):
+        super().__init__(llm, record_path)
+        self.max_hint = 10
+        self.n_shots_prompt = ''
+        # decide whether to use zero-shot or few-shot, default zero-shot
+        if n_shots_flag:
+            with open('prompt/complex_php_gsm8k.txt', 'r') as f:
+                self.n_shots_prompt = f.read()
 
     def question_prompt_with_hint(self, question, hint):
         prompt = f'Question: {question}'
@@ -20,11 +31,8 @@ class ProgressiveHint(Evaluation):
             prompt = f'Question: {question}(Hint: The answer is near to {",".join(hint)})'
         return prompt
 
-    def answer_prompt(self, answer):
-        return f"Answer:\nLet's think step by step.\n{answer}"
-
-    def n_shot_chats(self, n: int, question: str, hint: list):
-        chats = [{"role": "system", "content": system_prompt},
+    def n_shot_chats(self, question: str, hint: list):
+        chats = [{"role": "system", "content": system_prompt + self.n_shots_prompt},
                  {"role": "user", "content": self.question_prompt_with_hint(question, hint)}]
 
         return chats
@@ -39,23 +47,30 @@ class ProgressiveHint(Evaluation):
         for i in range(self.max_hint):
             # generate prompt
             prompt = self.generate_prompt_with_hint(data['question'], hint)
-            print(prompt)
             full_response = self.llm.get_full_response(prompt)
             total_completion_tokens += full_response['completion_tokens']
             total_time += full_response['time']
             generated.append(full_response['answer'])
             llm_answer = self.convert_answer(full_response['answer'])
             print(llm_answer)
-            if last_llm_answer == llm_answer:
+            # convert answer into numerical form successfully
+            if llm_answer:
+                if last_llm_answer == llm_answer:
+                    break
+                last_llm_answer = llm_answer
+                # add new hint to question
+                hint.append(last_llm_answer)
+            else:
+                # llm may return "I can't answer that question"
+                # when the difference between the hints is significant, ex. Q9-[15, 315, 135, 495]
+                # as temperature is set to 0.0, the model will generate the same sequence of answers again
+                # we can break here
                 break
-            last_llm_answer = llm_answer
-            # add new hint to question
-            hint.append(last_llm_answer)
         time.sleep(3)
         return last_llm_answer, total_completion_tokens, total_time, generated
 
     def generate_prompt_with_hint(self, question, hint):
-        return self.n_shot_chats(self.num_of_shots, question, hint)
+        return self.n_shot_chats(question, hint)
 
     def evaluation(self, data):
         """
