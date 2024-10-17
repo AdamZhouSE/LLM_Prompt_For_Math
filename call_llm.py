@@ -1,9 +1,12 @@
 import time
 
 from openai import OpenAI
-import requests
-from config import MODEL_NAME, MODEL_BASE_URL, MODEL_API_KEY, LOCAL_MODEL_NAME, LOCAL_MODEL_BASE_URL
-from pot_prompt import ProgramOfThoughts
+MODEL_NAME = "Meta-Llama-3.1-8B-Instruct"
+MODEL_BASE_URL = "https://api.sambanova.ai/v1"
+MODEL_API_KEY = "819d9e06-8139-4855-b953-6ff7d7786e94"
+# MODEL_BASE_URL = "http://localhost:11434/v1/"
+# MODEL_API_KEY = "ollama"
+# MODEL_NAME = "llama3.1:8b-instruct-q6_K"
 
 
 class LLM:
@@ -36,30 +39,13 @@ class LLM:
                     answer += delta.content
             else:
                 # end of stream, return information about the query
-                response = {'completion_tokens': chunk.usage.completion_tokens,
-                            'prompt_tokens': chunk.usage.prompt_tokens,
-                            'total_tokens': chunk.usage.total_tokens, 'time': chunk.usage.total_latency}
+                response = {'completion_tokens': chunk.usage.completion_tokens, 'time': chunk.usage.total_latency}
         response['answer'] = answer
         return response
 
-    def get_response_from_local(self, prompt):
-        data = {
-            'model': LOCAL_MODEL_NAME,
-            'messages': prompt,
-            'stream': False,
-            "temperature": self.temperature,
-            "top_p": self.top_p,
-        }
-        response = requests.post(LOCAL_MODEL_BASE_URL, json=data)
-        if response.status_code == 200:
-            return response.json()['message']['content']
-        else:
-            print(response.status_code)
-
 
 if __name__ == '__main__':
-    llm = LLM(0.4, 1)
-    pot_prompt = ProgramOfThoughts()
-    prompt = pot_prompt.n_shot_chats(8, "Olivia uploaded 72 pictures to Facebook.  She put the same number of the pics into 8 albums.  3 of the albums were selfies only and 2 of the albums were portraits.  How many portraits and selfies did she have?")
-    llm.get_full_response(prompt)
-    llm.get_response_from_local(prompt)
+    llm = LLM()
+    chats = [{"role": "system", "content": "Hello, I am LLM. I am here to help you with your math problems."},
+             {"role": "user", "content": "What is 2+2?"}]
+    print(llm.get_full_response(chats))

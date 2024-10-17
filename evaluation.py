@@ -19,15 +19,13 @@ class Evaluation:
     Base evaluation class, evaluate the baseline of zero-shot and few-shot
     """
 
-    def __init__(self, llm, record_path, num_of_shots=0, local_model=False):
+    def __init__(self, llm, record_path, num_of_shots=0):
         self.data_list = read_test_data()
         self.llm = llm
         # zero-shot or few-shot
         self.num_of_shots = num_of_shots
         # the file path to record the evaluation result
         self.record_path = record_path
-        # whether to use local model (in case api rate limit exceed)
-        self.local_model = local_model
 
     def generate_prompt(self, question):
         return question
@@ -93,21 +91,8 @@ class Evaluation:
                 break
             except Exception as e:
                 print('abort', e)
-                # rate_limit_exceed, sleep for 60s
+                # rate_limit_exceed, sleep for 10s
                 time.sleep(10)
-        print('total correct_rate', correct_cnt / total_cnt)
-
-    def run_evaluation_local(self):
-        total_cnt = len(self.data_list)
-        correct_cnt = 0
-        start_index = 0
-        for data in self.data_list:
-            result = self.evaluation(data)
-            if result:
-                print('correct')
-                correct_cnt += 1
-            start_index += 1
-            print('correct_rate', correct_cnt / start_index)
         print('total correct_rate', correct_cnt / total_cnt)
 
     def convert_answer(self, answer):

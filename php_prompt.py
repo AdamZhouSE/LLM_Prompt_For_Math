@@ -8,13 +8,10 @@ Use the format #### [value] to highlight your answer.
 For example, if the answer is 560, you should write #### 560.
 '''
 
-# with open('prompt/complex_php_gsm8k.txt', 'r') as f:
-#     n_shots_prompt = f.read()
-
 
 class ProgressiveHint(Evaluation):
-    def __init__(self, llm, record_path, num_of_shots=0, local_model=False):
-        super().__init__(llm, record_path, num_of_shots, local_model)
+    def __init__(self, llm, record_path, num_of_shots=0):
+        super().__init__(llm, record_path, num_of_shots)
         self.max_hint = 5
 
     def question_prompt_with_hint(self, question, hint):
