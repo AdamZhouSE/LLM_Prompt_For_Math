@@ -1,5 +1,4 @@
 import re
-import time
 
 import json
 
@@ -77,22 +76,13 @@ class Evaluation:
         total_cnt = len(self.data_list)
         correct_cnt = 0
         start_index = 0
-        while True:
-            try:
-                for i in range(start_index, total_cnt):
-                    print('No.', start_index + 1, sep='')
-                    result = self.evaluation(self.data_list[i])
-                    start_index += 1
-                    if result:
-                        correct_cnt += 1
-                    print('correct_rate', correct_cnt / start_index)
-                    if start_index % 10 == 0:
-                        time.sleep(10)
-                break
-            except Exception as e:
-                print('abort', e)
-                # rate_limit_exceed, sleep for 10s
-                time.sleep(10)
+        for i in range(start_index, total_cnt):
+            print('No.', start_index + 1, sep='')
+            result = self.evaluation(self.data_list[i])
+            start_index += 1
+            if result:
+                correct_cnt += 1
+            print('correct_rate', correct_cnt / start_index)
         print('total correct_rate', correct_cnt / total_cnt)
 
     def convert_answer(self, answer):
