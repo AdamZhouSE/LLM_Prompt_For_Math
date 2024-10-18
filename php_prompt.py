@@ -1,5 +1,3 @@
-import time
-
 from evaluation import Evaluation
 
 system_prompt = '''
@@ -7,6 +5,13 @@ Your task is to solve a series of math word problems by providing the final answ
 Use the format #### [value] to highlight your answer. 
 For example, if the answer is 560, you should write #### 560.
 '''
+
+
+def question_prompt_with_hint(question, hint):
+    prompt = f'Question: {question}'
+    if len(hint) > 0:
+        prompt = f'Question: {question}(Hint: The answer is near to {",".join(hint)})'
+    return prompt
 
 
 class ProgressiveHint(Evaluation):
@@ -25,15 +30,9 @@ class ProgressiveHint(Evaluation):
             with open('prompt/complex_php_gsm8k.txt', 'r') as f:
                 self.n_shots_prompt = f.read()
 
-    def question_prompt_with_hint(self, question, hint):
-        prompt = f'Question: {question}'
-        if len(hint) > 0:
-            prompt = f'Question: {question}(Hint: The answer is near to {",".join(hint)})'
-        return prompt
-
     def n_shot_chats(self, question: str, hint: list):
         chats = [{"role": "system", "content": system_prompt + self.n_shots_prompt},
-                 {"role": "user", "content": self.question_prompt_with_hint(question, hint)}]
+                 {"role": "user", "content": question_prompt_with_hint(question, hint)}]
 
         return chats
 
@@ -66,7 +65,6 @@ class ProgressiveHint(Evaluation):
                 # as temperature is set to 0.0, the model will generate the same sequence of answers again
                 # we can break here
                 break
-        time.sleep(3)
         return last_llm_answer, total_completion_tokens, total_time, generated
 
     def generate_prompt_with_hint(self, question, hint):
