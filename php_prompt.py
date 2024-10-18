@@ -1,10 +1,25 @@
 from evaluation import Evaluation
+from call_llm import LLM
 
 system_prompt = '''
 Your task is to solve a series of math word problems by providing the final answer. 
 Use the format #### [value] to highlight your answer. 
 For example, if the answer is 560, you should write #### 560.
 '''
+
+
+def get_prompt_list():
+    """
+    read and transform the prompt text into a list of qa tuples
+    """
+    with open('prompt/php_cot_prompt.txt', 'r') as f:
+        prompt_text = f.read()
+        qa_list = prompt_text.split('\n\n')
+        n_shots_list = []
+        for qa in qa_list:
+            qa = qa.split('Answer: ')
+            n_shots_list.append((qa[0].strip(), qa[1].strip()))
+        return n_shots_list
 
 
 def question_prompt_with_hint(question, hint):
@@ -21,19 +36,35 @@ class ProgressiveHint(Evaluation):
             using the previous round's answer as a prompt for the model,
             and end the process when the model returns the same result twice.
     """
-    def __init__(self, llm, record_path, n_shots_flag=False):
-        super().__init__(llm, record_path)
+
+    def __init__(self, llm, record_path, num_of_shots=0):
+        super().__init__(llm, record_path, num_of_shots)
         self.max_hint = 10
-        self.n_shots_prompt = ''
-        # decide whether to use zero-shot or few-shot, default zero-shot
-        if n_shots_flag:
-            with open('prompt/complex_php_gsm8k.txt', 'r') as f:
-                self.n_shots_prompt = f.read()
+        # self.n_shots_prompt = ''
+        # # decide whether to use zero-shot or few-shot, default zero-shot
+        # if n_shots_flag:
+        #     with open('prompt/complex_php_gsm8k.txt', 'r') as f:
+        #         self.n_shots_prompt = f.read()
+
+    def question_prompt(self, question):
+        return f'Question: {question}'
+
+    def answer_prompt(self, answer):
+        return f'Answer: {answer}'
 
     def n_shot_chats(self, question: str, hint: list):
-        chats = [{"role": "system", "content": system_prompt + self.n_shots_prompt},
-                 {"role": "user", "content": question_prompt_with_hint(question, hint)}]
+        chats = [
+            {"role": "system",
+             "content": system_prompt}
+        ]
 
+        for q, a in get_prompt_list()[:self.num_of_shots]:
+            chats.append(
+                {"role": "user", "content": q})
+            chats.append(
+                {"role": "assistant", "content": self.answer_prompt(a)})
+
+        chats.append({"role": "user", "content": question_prompt_with_hint(question, hint)})
         return chats
 
     def progressive_hint(self, data):
@@ -83,3 +114,9 @@ class ProgressiveHint(Evaluation):
         print('answer vs llm_answer', answer, llm_answer)
         self.record_evaluation(data['question'], answer, llm_answer, generated, total_completion_tokens, total_time)
         return llm_answer == answer
+
+
+if __name__ == '__main__':
+    llm = LLM()
+    php = ProgressiveHint(llm, 'php.jsonl', 0)
+    php.run_evaluation()
