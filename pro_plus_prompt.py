@@ -1,13 +1,171 @@
-from pot_prompt import ProgramOfThoughts
+from evaluation import Evaluation
+from php_prompt import question_prompt_with_hint
+from call_llm import LLM
+from collections import Counter
+import func_timeout
+
+system_prompt = "Your task is to solve math word problems using Python code. Provide only runnable Python code."
 
 
-class ProPlusPrompt(ProgramOfThoughts):
+def get_prompt_list():
+    """
+    read and transform the prompt text into a list of qa tuples
+    """
+    with open('prompt/pot_prompt_improve.txt', 'r') as f:
+        prompt_text = f.read()
+        qa_list = prompt_text.split('\n\n')
+        n_shots_list = []
+        for qa in qa_list:
+            qa = qa.split('# solution using Python:')
+            n_shots_list.append((qa[0].strip(), qa[1].strip()))
+        return n_shots_list
+
+
+class ProPlusPrompt(Evaluation):
     """
     Based on pot and php prompt, we design a new prompt called PPP (ProPlusPrompt)
-    Idea: In pot, we get python code from llm and run it locally to get the answer.
-        The code may be wrong in some cases, including value grounding error and logic generation error.
-        So we use the execution result as a new prompt to ask llm to re-generate the code.
-        And if code is runnable and the answer is same as the previous one, we stop.
+    baseline pot_original: 0.7733
+    Idea:
+        1. New Prompt 0.8074
+        2. Pot with hints 0.8180
+        3. Self-consistency
     """
-    def __init__(self, llm, record_path):
+
+    def __init__(self, llm, record_path, num_of_shots=8, max_hint=10, num_of_trials=10):
         super().__init__(llm, record_path)
+        self.num_of_shots = num_of_shots
+        self.max_hint = max_hint
+        self.num_of_trials = num_of_trials
+
+    def generate_prompt_with_hint(self, question, hint):
+        return self.n_shot_chats(question, hint)
+
+    def answer_prompt(self, answer):
+        return f'# solution using Python\n{answer}'
+
+    def n_shot_chats(self, question: str, hint: list):
+        chats = [
+            {"role": "system",
+             "content": system_prompt}
+        ]
+
+        for q, a in get_prompt_list()[:self.num_of_shots]:
+            chats.append(
+                {"role": "user", "content": q})
+            chats.append(
+                {"role": "assistant", "content": self.answer_prompt(a)})
+
+        chats.append({"role": "user", "content": question_prompt_with_hint(question, hint)})
+        return chats
+
+    def evaluation(self, data):
+        llm_answer, total_completion_tokens, total_time, all_generated = self.pro_plus(data)
+        # convert the answer into numerical form
+        answer = self.convert_answer(data['answer'])
+        print('question', data['question'])
+        print('answer vs llm_answer', answer, llm_answer)
+        self.record_evaluation(data['question'], answer, llm_answer, all_generated, total_completion_tokens, total_time)
+        return llm_answer == answer
+
+    def pro_plus(self, data):
+        total_completion_tokens = 0
+        total_time = 0.0
+        all_generated = []
+        result_counter = Counter()
+        for i in range(self.num_of_trials):
+            llm_answer, completion_tokens, time, generated = self.pro_plus_hint(data)
+            total_completion_tokens += completion_tokens
+            total_time += time
+            all_generated.append(generated)
+            if llm_answer is not None:
+                result_counter.update([llm_answer])
+        # get a majority vote
+        if len(result_counter) > 0:
+            llm_answer = result_counter.most_common(1)[0][0]
+        else:
+            llm_answer = None
+        return llm_answer, total_completion_tokens, total_time, all_generated
+
+    def pro_plus_hint(self, data):
+        completion_tokens = 0
+        time = 0.0
+        generated = []
+        # chat with llm multiple times until the answer is the same
+        last_llm_answer = None
+        hint = []
+        for i in range(self.max_hint):
+            # generate prompt
+            prompt = self.generate_prompt_with_hint(data['question'], hint)
+            full_response = self.llm.get_full_response(prompt)
+            completion_tokens += full_response['completion_tokens']
+            time += full_response['time']
+            generated.append(full_response['answer'])
+            # run the code and get the answer
+            llm_answer = self.convert_pot_answer(full_response['answer'])
+            print('llm_answer:', llm_answer)
+            # convert answer into numerical form successfully
+            if llm_answer:
+                if last_llm_answer == llm_answer:
+                    break
+                last_llm_answer = llm_answer
+                # add new hint to question
+                hint.append(last_llm_answer)
+        return last_llm_answer, completion_tokens, time, generated
+
+    def convert_pot_answer(self, answer):
+        exec_result = self.safe_execute(answer)
+        float_answer = self.floatify_ans(exec_result)
+        return self.delete_extra_zero(float_answer)
+
+    def safe_execute(self, code_string: str):
+        """
+        run the code generated by llm
+        """
+
+        def execute(x):
+            try:
+                global_scope = {}
+                local_scope = {}
+                exec(x, global_scope, local_scope)
+                return local_scope.get('solution')()
+            except Exception:
+                return None
+
+        try:
+            ans = func_timeout.func_timeout(5, execute, args=(code_string,))
+        except func_timeout.FunctionTimedOut:
+            ans = None
+
+        return ans
+
+    def floatify_ans(self, ans):
+        if ans is None:
+            return None
+        elif type(ans) == dict:
+            ans = list(ans.values())[0]
+        elif type(ans) == bool:
+            ans = ans
+        elif type(ans) in [list, tuple]:
+            if not ans:
+                return None
+            else:
+                try:
+                    ans = float(ans[0])
+                except Exception:
+                    ans = str(ans[0])
+        else:
+            try:
+                ans = float(ans)
+            except Exception:
+                ans = str(ans)
+        return ans
+
+
+if __name__ == '__main__':
+    llm = LLM(0.7, 0.95)
+    pro_plus = ProPlusPrompt(llm, 'pot_with_hint_sc10.jsonl')
+    pro_plus.run_evaluation()
+    # hints = pro_plus.generate_prompt_with_hint('What is the sum of 1 and 2?', [])
+    # print(len(hints))
+    # for hint in hints:
+    #     print(hint)
