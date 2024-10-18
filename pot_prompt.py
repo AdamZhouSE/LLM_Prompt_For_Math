@@ -97,6 +97,10 @@ ans = 5 - total_hours"""
 
 
 class ProgramOfThoughts(Evaluation):
+    """
+    POT: Program of Thoughts (https://github.com/TIGER-AI-Lab/Program-of-Thoughts/tree/main)
+    Idea: Let llm translate the question into Python code, and then run the code locally to get the answer.
+    """
     def __init__(self, llm, record_path, num_of_shots=0, num_of_trials=1):
         super().__init__(llm, record_path, num_of_shots)
         self.n_shot_list = gsm8k_n_shots
@@ -152,10 +156,6 @@ class ProgramOfThoughts(Evaluation):
             print(llm_answer)
             if llm_answer is not None:
                 result_counter.update([llm_answer])
-            if self.num_of_trials > 1:
-                time.sleep(1.5)
-        if self.num_of_trials > 1:
-            time.sleep(5)
         # get a majority vote
         if len(result_counter) > 0:
             llm_answer = result_counter.most_common(1)[0][0]

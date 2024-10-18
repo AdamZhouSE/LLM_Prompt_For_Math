@@ -62,7 +62,7 @@ class ProgressiveHint(Evaluation):
                 hint.append(last_llm_answer)
             else:
                 # llm may return "I can't answer that question"
-                # when the difference between the hints is significant, ex. Q9-[15, 315, 135, 495]
+                # when the difference between the hints is significant, e.g. Q9-[15, 315, 135, 495]
                 # as temperature is set to 0.0, the model will generate the same sequence of answers again
                 # we can break here
                 break
