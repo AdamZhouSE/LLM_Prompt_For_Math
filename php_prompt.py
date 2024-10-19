@@ -118,5 +118,5 @@ class ProgressiveHint(Evaluation):
 
 if __name__ == '__main__':
     llm = LLM()
-    php = ProgressiveHint(llm, 'php.jsonl', 0)
+    php = ProgressiveHint(llm, 'result/progressive_hint/php_fs.jsonl', 8)
     php.run_evaluation()

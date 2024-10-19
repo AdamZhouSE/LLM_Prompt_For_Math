@@ -31,7 +31,7 @@ class ProPlusPrompt(Evaluation):
         3. Self-consistency
     """
 
-    def __init__(self, llm, record_path, num_of_shots=8, max_hint=10, num_of_trials=10):
+    def __init__(self, llm, record_path, num_of_shots=0, max_hint=1, num_of_trials=1):
         super().__init__(llm, record_path)
         self.num_of_shots = num_of_shots
         self.max_hint = max_hint
@@ -162,10 +162,6 @@ class ProPlusPrompt(Evaluation):
 
 
 if __name__ == '__main__':
-    llm = LLM(0.7, 0.95)
-    pro_plus = ProPlusPrompt(llm, 'pot_with_hint_sc10.jsonl')
+    llm = LLM(0.4, 0.95)
+    pro_plus = ProPlusPrompt(llm, 'result/pro_plus/pot_with_hint_sc10.jsonl', 8, 10, 10)
     pro_plus.run_evaluation()
-    # hints = pro_plus.generate_prompt_with_hint('What is the sum of 1 and 2?', [])
-    # print(len(hints))
-    # for hint in hints:
-    #     print(hint)
