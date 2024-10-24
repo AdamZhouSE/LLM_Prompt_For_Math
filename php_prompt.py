@@ -74,6 +74,7 @@ class ProgressiveHint(Evaluation):
         # chat with llm multiple times until the answer is the same
         last_llm_answer = None
         hint = []
+        prompt = ''
         for i in range(self.max_hint):
             # generate prompt
             prompt = self.generate_prompt_with_hint(data['question'], hint)
@@ -96,7 +97,8 @@ class ProgressiveHint(Evaluation):
                 # as temperature is set to 0.0, the model will generate the same sequence of answers again
                 # we can break here
                 break
-        return last_llm_answer, total_completion_tokens, total_time, generated
+        # We only record the latest prompt for llm in PHP
+        return last_llm_answer, total_completion_tokens, total_time, generated, prompt
 
     def generate_prompt_with_hint(self, question, hint):
         return self.n_shot_chats(question, hint)
@@ -107,12 +109,13 @@ class ProgressiveHint(Evaluation):
         record the evaluation result in a jsonl file
         """
         # get llm result
-        llm_answer, total_completion_tokens, total_time, generated = self.progressive_hint(data)
+        llm_answer, total_completion_tokens, total_time, generated, prompt = self.progressive_hint(data)
         # convert the answer into numerical form
         answer = self.convert_answer(data['answer'])
         print('question', data['question'])
         print('answer vs llm_answer', answer, llm_answer)
-        self.record_evaluation(data['question'], answer, llm_answer, generated, total_completion_tokens, total_time)
+        self.record_evaluation(data['question'], prompt, generated, answer, llm_answer, total_completion_tokens,
+                               total_time)
         return llm_answer == answer
 
 
