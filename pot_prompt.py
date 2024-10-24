@@ -61,12 +61,13 @@ class ProgramOfThoughts(Evaluation):
         compare the result from llm with the correct answer
         record the evaluation result in a jsonl file
         """
-        llm_answer, total_completion_tokens, total_time, all_generated = self.program_of_thought(data)
+        llm_answer, total_completion_tokens, total_time, all_generated, prompt = self.program_of_thought(data)
         # convert the answer into numerical form
         answer = self.convert_answer(data['answer'])
         print('question', data['question'])
         print('answer vs llm_answer', answer, llm_answer)
-        self.record_evaluation(data['question'], answer, llm_answer, all_generated, total_completion_tokens, total_time)
+        self.record_evaluation(data['question'], prompt, all_generated, answer, llm_answer, total_completion_tokens,
+                               total_time)
         return llm_answer == answer
 
     def program_of_thought(self, data):
@@ -79,8 +80,8 @@ class ProgramOfThoughts(Evaluation):
         result_counter = Counter()
         # number of trials default 1 -> greedy
         # multiple trials -> self-consistency
+        prompt = self.generate_prompt(data['question'])
         for i in range(self.num_of_trials):
-            prompt = self.generate_prompt(data['question'])
             # call llm
             full_response = self.llm.get_full_response(prompt)
             llm_answer = self.convert_pot_answer(full_response['answer'])
@@ -95,7 +96,7 @@ class ProgramOfThoughts(Evaluation):
             llm_answer = result_counter.most_common(1)[0][0]
         else:
             llm_answer = None
-        return llm_answer, total_completion_tokens, total_time, all_generated
+        return llm_answer, total_completion_tokens, total_time, all_generated, prompt
 
     def generate_prompt(self, question):
         return self.n_shot_chats(self.num_of_shots, question)
