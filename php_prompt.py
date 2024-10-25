@@ -1,5 +1,6 @@
 from evaluation import Evaluation
 from call_llm import LLM
+from collections import Counter
 
 system_prompt = '''
 Your task is to solve a series of math word problems by providing the final answer. 
@@ -37,14 +38,10 @@ class ProgressiveHint(Evaluation):
             and end the process when the model returns the same result twice.
     """
 
-    def __init__(self, llm, record_path, num_of_shots=0):
+    def __init__(self, llm, record_path, num_of_shots=0, num_of_trials=1):
         super().__init__(llm, record_path, num_of_shots)
         self.max_hint = 10
-        # self.n_shots_prompt = ''
-        # # decide whether to use zero-shot or few-shot, default zero-shot
-        # if n_shots_flag:
-        #     with open('prompt/complex_php_gsm8k.txt', 'r') as f:
-        #         self.n_shots_prompt = f.read()
+        self.num_of_trials = num_of_trials
 
     def question_prompt(self, question):
         return f'Question: {question}'
@@ -71,34 +68,43 @@ class ProgressiveHint(Evaluation):
         total_completion_tokens = 0
         total_time = 0.0
         generated = []
-        # chat with llm multiple times until the answer is the same
-        last_llm_answer = None
         hint = []
         prompt = ''
-        for i in range(self.max_hint):
-            # generate prompt
-            prompt = self.generate_prompt_with_hint(data['question'], hint)
-            full_response = self.llm.get_full_response(prompt)
-            total_completion_tokens += full_response['completion_tokens']
-            total_time += full_response['time']
-            generated.append(full_response['answer'])
-            llm_answer = self.convert_answer(full_response['answer'])
-            print(llm_answer)
-            # convert answer into numerical form successfully
-            if llm_answer:
-                if last_llm_answer == llm_answer:
+        result_counter = Counter()
+        for i in range(self.num_of_trials):
+            # chat with llm multiple times until the answer is the same
+            last_llm_answer = None
+            for j in range(self.max_hint):
+                # generate prompt
+                prompt = self.generate_prompt_with_hint(data['question'], hint)
+                full_response = self.llm.get_full_response(prompt)
+                total_completion_tokens += full_response['completion_tokens']
+                total_time += full_response['time']
+                generated.append(full_response['answer'])
+                llm_answer = self.convert_answer(full_response['answer'])
+                print(llm_answer)
+                # convert answer into numerical form successfully
+                if llm_answer:
+                    if last_llm_answer == llm_answer:
+                        break
+                    last_llm_answer = llm_answer
+                    # add new hint to question
+                    hint.append(last_llm_answer)
+                else:
+                    # llm may return "I can't answer that question"
+                    # when the difference between the hints is significant, e.g. Q9-[15, 315, 135, 495]
+                    # as temperature is set to 0.0, the model will generate the same sequence of answers again
+                    # we can break here
                     break
-                last_llm_answer = llm_answer
-                # add new hint to question
-                hint.append(last_llm_answer)
-            else:
-                # llm may return "I can't answer that question"
-                # when the difference between the hints is significant, e.g. Q9-[15, 315, 135, 495]
-                # as temperature is set to 0.0, the model will generate the same sequence of answers again
-                # we can break here
-                break
+            if last_llm_answer is not None:
+                result_counter.update([last_llm_answer])
+        # get a majority vote
+        if len(result_counter) > 0:
+            llm_answer = result_counter.most_common(1)[0][0]
+        else:
+            llm_answer = None
         # We only record the latest prompt for llm in PHP
-        return last_llm_answer, total_completion_tokens, total_time, generated, prompt
+        return llm_answer, total_completion_tokens, total_time, generated, prompt
 
     def generate_prompt_with_hint(self, question, hint):
         return self.n_shot_chats(question, hint)
