@@ -1,10 +1,10 @@
 from evaluation import Evaluation
-from php_prompt import question_prompt_with_hint
 from call_llm import LLM
 from collections import Counter
 import func_timeout
 
-system_prompt = "Your task is to solve math word problems using Python code. Provide only runnable Python code."
+system_prompt = """Your task is to solve math word problems using Python code. 
+Provide only runnable Python code."""
 
 
 def get_prompt_list():
@@ -21,14 +21,21 @@ def get_prompt_list():
         return n_shots_list
 
 
+def question_prompt_with_hint(question, hint):
+    prompt = f'Question: {question}'
+    if len(hint) > 0:
+        prompt = f'Question: {question}(Hint: The answer is near to {",".join(hint)})'
+    return prompt
+
+
 class ProPlusPrompt(Evaluation):
     """
     Based on pot and php prompt, we design a new prompt called PPP (ProPlusPrompt)
     baseline pot_original: 0.7733
     Idea:
         1. New Prompt 0.8074
-        2. Pot with hints 0.8180
-        3. Self-consistency
+        2. Pot with hints 0.8226
+        3. Self-consistency 10 0.8635
     """
 
     def __init__(self, llm, record_path, num_of_shots=0, max_hint=1, num_of_trials=1):
@@ -59,12 +66,13 @@ class ProPlusPrompt(Evaluation):
         return chats
 
     def evaluation(self, data):
-        llm_answer, total_completion_tokens, total_time, all_generated = self.pro_plus(data)
+        llm_answer, total_completion_tokens, total_time, all_generated, prompt = self.pro_plus(data)
         # convert the answer into numerical form
         answer = self.convert_answer(data['answer'])
         print('question', data['question'])
         print('answer vs llm_answer', answer, llm_answer)
-        self.record_evaluation(data['question'], answer, llm_answer, all_generated, total_completion_tokens, total_time)
+        self.record_evaluation(data['question'], prompt, all_generated, answer, llm_answer, total_completion_tokens,
+                               total_time)
         return llm_answer == answer
 
     def pro_plus(self, data):
@@ -72,8 +80,10 @@ class ProPlusPrompt(Evaluation):
         total_time = 0.0
         all_generated = []
         result_counter = Counter()
+        prompt = ''
+        # greedy or self-consistency
         for i in range(self.num_of_trials):
-            llm_answer, completion_tokens, time, generated = self.pro_plus_hint(data)
+            llm_answer, completion_tokens, time, generated, prompt = self.pro_plus_hint(data)
             total_completion_tokens += completion_tokens
             total_time += time
             all_generated.append(generated)
@@ -84,7 +94,7 @@ class ProPlusPrompt(Evaluation):
             llm_answer = result_counter.most_common(1)[0][0]
         else:
             llm_answer = None
-        return llm_answer, total_completion_tokens, total_time, all_generated
+        return llm_answer, total_completion_tokens, total_time, all_generated, prompt
 
     def pro_plus_hint(self, data):
         completion_tokens = 0
@@ -93,6 +103,7 @@ class ProPlusPrompt(Evaluation):
         # chat with llm multiple times until the answer is the same
         last_llm_answer = None
         hint = []
+        prompt = ''
         for i in range(self.max_hint):
             # generate prompt
             prompt = self.generate_prompt_with_hint(data['question'], hint)
@@ -110,7 +121,7 @@ class ProPlusPrompt(Evaluation):
                 last_llm_answer = llm_answer
                 # add new hint to question
                 hint.append(last_llm_answer)
-        return last_llm_answer, completion_tokens, time, generated
+        return last_llm_answer, completion_tokens, time, generated, prompt
 
     def convert_pot_answer(self, answer):
         exec_result = self.safe_execute(answer)
@@ -162,6 +173,6 @@ class ProPlusPrompt(Evaluation):
 
 
 if __name__ == '__main__':
-    llm = LLM(0.4, 0.95)
-    pro_plus = ProPlusPrompt(llm, 'result/pro_plus/pot_with_hint_sc10.jsonl', 8, 10, 10)
+    llm = LLM()
+    pro_plus = ProPlusPrompt(llm, 'pot_with_hint.jsonl', 8, 10, 1)
     pro_plus.run_evaluation()
