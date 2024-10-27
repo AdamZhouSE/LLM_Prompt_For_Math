@@ -31,11 +31,11 @@ def question_prompt_with_hint(question, hint):
 class ProPlusPrompt(Evaluation):
     """
     Based on pot and php prompt, we design a new prompt called PPP (ProPlusPrompt)
-    baseline pot_original: 0.7733
+    baseline pot_original: 77.79%
     Idea:
-        1. New Prompt 0.8074
-        2. Pot with hints 0.8226
-        3. Self-consistency 10 0.8635
+        1. New Prompt 80.74%
+        2. Pot with hints 82.26%
+        3. Self-consistency 10 88.25%
     """
 
     def __init__(self, llm, record_path, num_of_shots=0, max_hint=1, num_of_trials=1):
