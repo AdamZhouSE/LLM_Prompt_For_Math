@@ -6,8 +6,7 @@ open-source model **Llama-3.1-8B-Instruct** to experiment.
 
 By using different prompt technologies, we can instruct LLMs for desired outcomes without updating model weights. First
 of all, we implement the **baseline** evaluation for the model, which tests zero-shot and few-shot prompts on the
-dataset. Secondly, we implement two methods, [**Program of Thoughts**](https://arxiv.org/pdf/2211.12588)(PoT) and [*
-*Progressive Hint Prompt**](https://arxiv.org/pdf/2304.09797)(PHP), from two papers and evaluate their performance.
+dataset. Secondly, we implement two methods, [**Program of Thoughts**](https://arxiv.org/pdf/2211.12588)(PoT) and [**Progressive Hint Prompt**](https://arxiv.org/pdf/2304.09797)(PHP), from two papers and evaluate their performance.
 Finally, we try to combine both methods and design a new prompt method called **Pro Plus Prompt**(PPP) to improve the
 accuracy of the model's math problem-solving and achieve a high accuracy of **92.27%**.
 
@@ -51,15 +50,9 @@ parameter.
 
 ```python
 def run_baseline(filepath, num_of_shots=0)
-
-
-    def run_pot(filepath, num_of_shots=0, num_of_trials=1, temperature=0.0, top_p=1.0)
-
-
-    def run_php(filepath, num_of_shots=0, num_of_trials=1, temperature=0.0, top_p=1.0)
-
-
-    def run_ppp(filepath, temperature=0.0, top_p=1.0)
+def run_pot(filepath, num_of_shots=0, num_of_trials=1, temperature=0.0, top_p=1.0)
+def run_php(filepath, num_of_shots=0, num_of_trials=1, temperature=0.0, top_p=1.0)
+def run_ppp(filepath, temperature=0.0, top_p=1.0)
 ```
 
 ## Format of Result Files
