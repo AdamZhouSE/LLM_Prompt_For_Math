@@ -1,72 +1,73 @@
-from evaluation import Evaluation
-from call_llm import LLM
 from collections import Counter
+from pot_prompt import ProgramOfThoughts
+from php_prompt import ProgressiveHint
 import func_timeout
 
-system_prompt = """Your task is to solve math word problems using Python code. 
+
+class ProPlusPrompt(ProgramOfThoughts):
+    """
+    Based on pot and php prompt, we design a new prompt called PPP (ProPlusPrompt).
+    We use php's answer to verify pot's answer.
+    """
+
+    def __init__(self, llm, record_path):
+        super().__init__(llm, record_path, 8)
+        self.php = ProgressiveHint(llm, record_path, 8)
+        self.max_times = 10
+        self.prompt_path = 'prompt/pot_prompt_improve.txt'
+        self.system_prompt = """Your task is to solve math word problems using Python code. 
 Provide only runnable Python code."""
 
-
-def get_prompt_list():
-    """
-    read and transform the prompt text into a list of qa tuples
-    """
-    with open('prompt/pot_prompt_improve.txt', 'r') as f:
-        prompt_text = f.read()
-        qa_list = prompt_text.split('\n\n')
-        n_shots_list = []
-        for qa in qa_list:
-            qa = qa.split('# solution using Python:')
-            n_shots_list.append((qa[0].strip(), qa[1].strip()))
-        return n_shots_list
-
-
-def question_prompt_with_hint(question, hint):
-    prompt = f'Question: {question}'
-    if len(hint) > 0:
-        prompt = f'Question: {question}(Hint: The answer is near to {",".join(hint)})'
-    return prompt
-
-
-class ProPlusPrompt(Evaluation):
-    """
-    Based on pot and php prompt, we design a new prompt called PPP (ProPlusPrompt)
-    baseline pot_original: 77.79%
-    Idea:
-        1. New Prompt 80.74%
-        2. Pot with hints 82.26%
-        3. Self-consistency 10 88.25%
-    """
-
-    def __init__(self, llm, record_path, num_of_shots=0, max_hint=1, num_of_trials=1):
-        super().__init__(llm, record_path)
-        self.num_of_shots = num_of_shots
-        self.max_hint = max_hint
-        self.num_of_trials = num_of_trials
-
-    def generate_prompt_with_hint(self, question, hint):
-        return self.n_shot_chats(question, hint)
+    def get_prompt_list(self):
+        """
+        read and transform the prompt text into a list of qa tuples
+        """
+        with open(self.prompt_path, 'r') as f:
+            prompt_text = f.read()
+            qa_list = prompt_text.split('\n\n')
+            n_shots_list = []
+            for qa in qa_list:
+                qa = qa.split('# solution using Python:')
+                n_shots_list.append((qa[0].strip(), qa[1].strip()))
+            return n_shots_list
 
     def answer_prompt(self, answer):
         return f'# solution using Python\n{answer}'
 
-    def n_shot_chats(self, question: str, hint: list):
-        chats = [
-            {"role": "system",
-             "content": system_prompt}
-        ]
-
-        for q, a in get_prompt_list()[:self.num_of_shots]:
-            chats.append(
-                {"role": "user", "content": q})
-            chats.append(
-                {"role": "assistant", "content": self.answer_prompt(a)})
-
-        chats.append({"role": "user", "content": question_prompt_with_hint(question, hint)})
-        return chats
+    def pro_plus_prompt(self, data):
+        llm_answer = None
+        result_counter = Counter()
+        total_completion_tokens = 0
+        total_time = 0.0
+        all_generated = []
+        prompt = ''
+        for i in range(self.max_times):
+            # use two methods to get the answer
+            llm_answer_pot, tokens_pot, time_pot, generated_pot, prompt_pot = self.program_of_thought(data)
+            llm_answer_php, tokens_php, time_php, generated_php, prompt_php = self.php.progressive_hint(data)
+            total_completion_tokens += tokens_pot + tokens_php
+            total_time += time_pot + time_php
+            all_generated.extend(generated_pot)
+            all_generated.extend(generated_php)
+            prompt = [prompt_pot, prompt_php]
+            # get same answer, return
+            if llm_answer_pot == llm_answer_php:
+                llm_answer = llm_answer_pot
+                break
+            # different answers -> get majority vote
+            if llm_answer_pot is not None:
+                result_counter.update([llm_answer_pot])
+            if llm_answer_php is not None:
+                result_counter.update([llm_answer_php])
+        if llm_answer is None:
+            if len(result_counter) > 0:
+                llm_answer = result_counter.most_common(1)[0][0]
+            else:
+                llm_answer = None
+        return llm_answer, total_completion_tokens, total_time, all_generated, prompt
 
     def evaluation(self, data):
-        llm_answer, total_completion_tokens, total_time, all_generated, prompt = self.pro_plus(data)
+        llm_answer, total_completion_tokens, total_time, all_generated, prompt = self.pro_plus_prompt(data)
         # convert the answer into numerical form
         answer = self.convert_answer(data['answer'])
         print('question', data['question'])
@@ -75,64 +76,10 @@ class ProPlusPrompt(Evaluation):
                                total_time)
         return llm_answer == answer
 
-    def pro_plus(self, data):
-        total_completion_tokens = 0
-        total_time = 0.0
-        all_generated = []
-        result_counter = Counter()
-        prompt = ''
-        # greedy or self-consistency
-        for i in range(self.num_of_trials):
-            llm_answer, completion_tokens, time, generated, prompt = self.pro_plus_hint(data)
-            total_completion_tokens += completion_tokens
-            total_time += time
-            all_generated.append(generated)
-            if llm_answer is not None:
-                result_counter.update([llm_answer])
-        # get a majority vote
-        if len(result_counter) > 0:
-            llm_answer = result_counter.most_common(1)[0][0]
-        else:
-            llm_answer = None
-        return llm_answer, total_completion_tokens, total_time, all_generated, prompt
-
-    def pro_plus_hint(self, data):
-        completion_tokens = 0
-        time = 0.0
-        generated = []
-        # chat with llm multiple times until the answer is the same
-        last_llm_answer = None
-        hint = []
-        prompt = ''
-        for i in range(self.max_hint):
-            # generate prompt
-            prompt = self.generate_prompt_with_hint(data['question'], hint)
-            full_response = self.llm.get_full_response(prompt)
-            completion_tokens += full_response['completion_tokens']
-            time += full_response['time']
-            generated.append(full_response['answer'])
-            # run the code and get the answer
-            llm_answer = self.convert_pot_answer(full_response['answer'])
-            print('llm_answer:', llm_answer)
-            # convert answer into numerical form successfully
-            if llm_answer:
-                if last_llm_answer == llm_answer:
-                    break
-                last_llm_answer = llm_answer
-                # add new hint to question
-                hint.append(last_llm_answer)
-        return last_llm_answer, completion_tokens, time, generated, prompt
-
-    def convert_pot_answer(self, answer):
-        exec_result = self.safe_execute(answer)
-        float_answer = self.floatify_ans(exec_result)
-        return self.delete_extra_zero(float_answer)
-
     def safe_execute(self, code_string: str):
         """
         run the code generated by llm
         """
-
         def execute(x):
             try:
                 global_scope = {}
@@ -141,7 +88,6 @@ class ProPlusPrompt(Evaluation):
                 return local_scope.get('solution')()
             except Exception:
                 return None
-
         try:
             ans = func_timeout.func_timeout(5, execute, args=(code_string,))
         except func_timeout.FunctionTimedOut:
@@ -149,30 +95,3 @@ class ProPlusPrompt(Evaluation):
 
         return ans
 
-    def floatify_ans(self, ans):
-        if ans is None:
-            return None
-        elif type(ans) == dict:
-            ans = list(ans.values())[0]
-        elif type(ans) == bool:
-            ans = ans
-        elif type(ans) in [list, tuple]:
-            if not ans:
-                return None
-            else:
-                try:
-                    ans = float(ans[0])
-                except Exception:
-                    ans = str(ans[0])
-        else:
-            try:
-                ans = float(ans)
-            except Exception:
-                ans = str(ans)
-        return ans
-
-
-if __name__ == '__main__':
-    llm = LLM()
-    pro_plus = ProPlusPrompt(llm, 'pot_with_hint.jsonl', 8, 10, 1)
-    pro_plus.run_evaluation()

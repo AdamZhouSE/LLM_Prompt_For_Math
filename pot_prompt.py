@@ -3,24 +3,6 @@ import func_timeout
 from collections import Counter
 from call_llm import LLM
 
-system_prompt = """Your task is to solve math word problems using Python code.
-Assign the final result to a variable called `ans`.
-Provide only runnable Python code."""
-
-
-def get_prompt_list():
-    """
-    read and transform the prompt text into a list of qa tuples
-    """
-    with open('prompt/pot_prompt_original.txt', 'r') as f:
-        prompt_text = f.read()
-        qa_list = prompt_text.split('\n\n')
-        n_shots_list = []
-        for qa in qa_list:
-            qa = qa.split('# Python code, return ans')
-            n_shots_list.append((qa[0].strip(), qa[1].strip()))
-        return n_shots_list
-
 
 class ProgramOfThoughts(Evaluation):
     """
@@ -34,6 +16,23 @@ class ProgramOfThoughts(Evaluation):
         self.num_of_shots = num_of_shots
         # decide whether to use greedy or self-consistency, default greedy
         self.num_of_trials = num_of_trials
+        self.prompt_path = 'prompt/pot_prompt_original.txt'
+        self.system_prompt = """Your task is to solve math word problems using Python code.
+Assign the final result to a variable called `ans`.
+Provide only runnable Python code."""
+
+    def get_prompt_list(self):
+        """
+        read and transform the prompt text into a list of qa tuples
+        """
+        with open(self.prompt_path, 'r') as f:
+            prompt_text = f.read()
+            qa_list = prompt_text.split('\n\n')
+            n_shots_list = []
+            for qa in qa_list:
+                qa = qa.split('# Python code, return ans')
+                n_shots_list.append((qa[0].strip(), qa[1].strip()))
+            return n_shots_list
 
     def question_prompt(self, question):
         return f'Question: {question}'
@@ -44,10 +43,10 @@ class ProgramOfThoughts(Evaluation):
     def n_shot_chats(self, n: int, question: str):
         chats = [
             {"role": "system",
-             "content": system_prompt}
+             "content": self.system_prompt}
         ]
 
-        for q, a in get_prompt_list()[:n]:
+        for q, a in self.get_prompt_list()[:n]:
             chats.append(
                 {"role": "user", "content": q})
             chats.append(
