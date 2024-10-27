@@ -9,9 +9,9 @@ ans = sold_eggs * dollars_per_egg
 
 Question: A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?
 # Python code, return ans
-bolts_of_blue_fiber = 2
-bolts_of_white_fiber = num_of_blue_fiber / 2
-ans = bolts_of_blue_fiber + bolts_of_white_fiber
+num_of_blue_fiber = 2
+num_of_white_fiber = num_of_blue_fiber / 2
+ans = num_of_blue_fiber + num_of_white_fiber
 
 Question: Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?
 # Python code, return ans
@@ -23,7 +23,7 @@ ans = value_of_house - cost_of_repair - cost_of_original_house
 
 Question: Every day, Wendi feeds each of her chickens three cups of mixed chicken feed, containing seeds, mealworms and vegetables to help keep them healthy.  She gives the chickens their feed in three separate meals. In the morning, she gives her flock of chickens 15 cups of feed.  In the afternoon, she gives her chickens another 25 cups of feed.  How many cups of feed does she need to give her chickens in the final meal of the day if the size of Wendi's flock is 20 chickens?
 # Python code, return ans
-numb_of_chickens = 20
+num_of_chickens = 20
 cups_for_each_chicken = 3
 cups_for_all_chicken = num_of_chickens * cups_for_each_chicken
 cups_in_the_morning = 15
@@ -59,7 +59,7 @@ cost_of_watering_and_feeding = 3
 cost_of_each_lemon = 1.5
 num_of_lemon_per_year = 7
 ans = 0
-while total_cost > 0:
+while total_cost >= 0:
     total_cost += cost_of_watering_and_feeding
     total_cost -= num_of_lemon_per_year * cost_of_each_lemon
     ans += 1
