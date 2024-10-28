@@ -12,7 +12,7 @@ accuracy of the model's math problem-solving and achieve a high accuracy of **92
 
 ## Code Structure
 
-The project has been uploaded to [**Github**](https://github.com/AdamZhouSE/LLM_Prompt_For_Math). Feel free to check the
+The project has been uploaded to [**GitHub**](https://github.com/AdamZhouSE/LLM_Prompt_For_Math). Feel free to check the
 code and results. Here is a brief introduction to the project structure and functions of files.
 
 ```bat
@@ -35,7 +35,7 @@ code and results. Here is a brief introduction to the project structure and func
 We have four prompt methods, including baseline, PoT, PHP, and PPP. You can find implementations of them in
 corresponding Python files, which are the first four files displayed above. We also have an `evaluation.py`, which is
 inherited by each of the four methods and overwritten to satisfy the unique assessment requirements of each method,
-including different prompts, self-consistency, result record, and etc. The few-shot prompts for different methods are
+including different prompts, self-consistency, result record, etc. The few-shot prompts for different methods are
 saved in the directory `prompt`. The result files are saved in the directory `result`.
 
 In `main.py`, we write four methods to run evaluations for different prompts by passing different parameters. As you can
@@ -317,15 +317,15 @@ def solution():
 ## Combine
 
 We extract the numbers of correctly answered questions from each of the two files, `php_sc10.jsonl`
-and `ppp_new_prompt.jsonl`, and then take their difference set. **Our findings show that PHP correctly answers 160
+and `pot_new_prompt.jsonl`, and then take their difference set. **Our findings show that PHP correctly answers 160
 questions that PoT misses, while PoT correctly answers 56 questions that PHP misses.** This indicates that these two
 methods can complement one another to some extent.
 
 Building on our findings, we develop a new prompting method called Pro Plus Prompt that combines PoT and PHP approaches.
 In each interaction, results from both methods are retrieved and compared; if they match, the answer is considered
 correct and returned. If the results differ, a maximum attempt limit is set(max_times=10), after which the most
-frequently occurring result is returned. The idea behind this method is to **cross-validate the results of PHP and PoT
-**. It also incorporates the **self-consistency** approach, where the maximum attempt count effectively serves as the
+frequently occurring result is returned. The idea behind this method is to **cross-validate the results of PHP and PoT**. 
+It also incorporates the **self-consistency** approach, where the maximum attempt count effectively serves as the
 value of *k* in self-consistency.
 
 ```python
